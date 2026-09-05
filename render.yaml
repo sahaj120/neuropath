@@ -1,0 +1,69 @@
+# NeuroPath on Render - one-click Blueprint (Best Use of Render track).
+# Deploys the Next.js frontend plus the Python background worker in one file.
+# The durable Workflow itself is created once via Dashboard > New > Workflow
+# (Blueprints cannot create Workflow services yet); afterwards the web
+# service triggers it with RENDER_API_KEY + WORKFLOW_SLUG (see settings).
+services:
+  # Web Service - Next.js frontend (web/)
+  - type: web
+    name: neuropath-web
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: web
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: RENDER_API_KEY
+        sync: false
+      - key: WORKFLOW_SLUG
+        value: neuropath-workflow
+
+  # Background worker - Render Workflows task server (render_worker.py).
+  # Serves the durable `clinical_pacing_task` registry via start().
+  - type: worker
+    name: neuropath-worker
+    runtime: python
+    plan: free
+    region: oregon
+    rootDir: .
+    buildCommand: pip install -r requirements.txt
+    startCommand: python render_worker.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: GEMINI_API_KEY
+        sync: false
+
+# Render Workflow service -> render_worker.py (create manually until
+# Blueprints support Workflows). Dashboard > New > Workflow, verbatim:
+#   Repository : this repo
+#   Name       : neuropath-workflow   (must match WORKFLOW_SLUG above)
+#   Region     : oregon
+#   Root Dir   : .                    (render_worker.py lives at repo root)
+#   Build Cmd  : pip install -r requirements.txt
+#   Start Cmd  : python render_worker.py
+#   Env Vars   : PYTHON_VERSION=3.11.9, GEMINI_API_KEY=<secret>
+# Registered durable task: clinical_pacing_task
+# Trigger pattern: run_task("neuropath-workflow/clinical_pacing_task",
+#                           [{ note, symptoms }])
+# Local equivalents: python render_worker.py --local | render workflows dev
+x-neuropath-workflow:
+  type: workflow
+  name: neuropath-workflow
+  runtime: python
+  plan: starter
+  region: oregon
+  rootDir: .
+  buildCommand: pip install -r requirements.txt
+  startCommand: python render_worker.py
+  envVars:
+    - key: PYTHON_VERSION
+      value: 3.11.9
+    - key: GEMINI_API_KEY
+      sync: false

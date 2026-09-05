@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Quiet, premium selection */
+::selection {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* Native range inputs are never shown, all sliders are custom Tailwind tracks */
+input[type="range"].np-native-hide {
+  opacity: 0;
+}
